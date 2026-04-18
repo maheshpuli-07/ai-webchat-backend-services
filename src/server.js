@@ -19,28 +19,7 @@ const { seedKnowledgeIfNeeded } = require('./services/rag/seedKnowledgeIfNeeded'
 const { apiTrafficLogger } = require('./middleware/apiTrafficLogger');
 
 const app = express();
-
-function isGirmitiHttpsOrigin(origin) {
-  try {
-    const u = new URL(origin);
-    if (u.protocol !== 'https:') return false;
-    const h = u.hostname.toLowerCase();
-    return h === 'girmiti.com' || h.endsWith('.girmiti.com');
-  } catch {
-    return false;
-  }
-}
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (config.corsExtraOrigins.includes(origin)) return callback(null, true);
-      if (isGirmitiHttpsOrigin(origin)) return callback(null, true);
-      callback(null, false);
-    },
-  })
-);
+app.use(cors());
 app.use(express.json());
 app.use(apiTrafficLogger);
 

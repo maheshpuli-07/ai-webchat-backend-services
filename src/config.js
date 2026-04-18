@@ -17,16 +17,6 @@ module.exports = {
   jwtSecret: process.env.JWT_SECRET || 'dev-only-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
 
-  /**
-   * Comma-separated extra browser origins for CORS (e.g. http://localhost:5173).
-   * HTTPS requests to girmiti.com and any *.girmiti.com subdomain are always allowed.
-   */
-  corsExtraOrigins: (() => {
-    const raw = (process.env.CORS_ORIGINS || '').trim();
-    if (!raw) return [];
-    return raw.split(',').map((s) => s.trim()).filter(Boolean);
-  })(),
-
   /** Google Sign-In: Web client ID(s) from Google Cloud Console (OAuth 2.0 Client). */
   googleOauthClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
   googleOauthAudiences: (() => {
