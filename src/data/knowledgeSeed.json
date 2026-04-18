@@ -1,0 +1,22 @@
+[
+  {
+    "title": "ATM daily withdrawal limit",
+    "category": "faq",
+    "content": "Retail customers may withdraw up to the daily limit shown in the mobile app under Cards & limits. Limits vary by card tier and can be temporarily lowered for security. International ATM fees may apply per the fee schedule."
+  },
+  {
+    "title": "Fixed deposit (FD) early withdrawal",
+    "category": "product",
+    "content": "Fixed deposits are intended to be held until maturity. If you break an FD early, interest is typically paid at the applicable premature rate (often lower than the booked rate) and a penalty may apply. Exact rates depend on the product variant you selected at booking."
+  },
+  {
+    "title": "Privacy and data use (summary)",
+    "category": "policy",
+    "content": "We collect and process personal data only as described in our Privacy Notice: to operate accounts, prevent fraud, meet legal obligations, and improve services. You may request a copy of data we hold subject to verification and applicable law. Marketing communications require consent where required."
+  },
+  {
+    "title": "Reporting a lost or stolen card",
+    "category": "faq",
+    "content": "If your card is lost or stolen, freeze or block it immediately in the app or call the 24/7 card hotline. You will not be liable for unauthorized transactions after timely reporting, subject to the terms of your card agreement and local regulations."
+  }
+]

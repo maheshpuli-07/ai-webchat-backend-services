@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Banking API — Integration Handbook</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #fff;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --accent: #1e5a8e;
+      --border: #d8e0ea;
+      --code: #f0f4f8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      line-height: 1.55;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0;
+      padding: 2rem 1.5rem 4rem;
+      max-width: 920px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 { font-size: 1.85rem; border-bottom: 3px solid var(--accent); padding-bottom: 0.4rem; }
+    h2 { font-size: 1.35rem; margin-top: 2.2rem; color: var(--accent); }
+    h3 { font-size: 1.1rem; margin-top: 1.4rem; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    pre, code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      padding: 1rem;
+      overflow-x: auto;
+      border-radius: 8px;
+    }
+    code { background: var(--code); padding: 0.15em 0.4em; border-radius: 4px; }
+    pre code { background: none; padding: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 1rem 0;
+    }
+    th, td { border: 1px solid var(--border); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
+    th { background: #e8eef5; }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
+    .diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+    .toc { background: #e8f0f8; border-radius: 10px; padding: 1rem 1.25rem; }
+    .toc ul { margin: 0.5rem 0 0 1rem; }
+    .badge { display: inline-block; background: var(--accent); color: #fff; font-size: 0.75rem; padding: 0.2em 0.5em; border-radius: 4px; margin-right: 0.35rem; }
+    @media print {
+      body { background: #fff; padding: 0; max-width: 100%; }
+      .card, .diagram { break-inside: avoid; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #666; }
+    }
+    .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.9rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<h1>AI Banking API — Backend Integration Handbook</h1>
+<p class="muted">Node.js + Express · JWT · Dual gateway · Groq/OpenAI orchestration · CBA UAPI simulator integration</p>
+<p><strong>Download as PDF:</strong> open this file in a browser → <kbd>Ctrl+P</kbd> (or Print) → choose <strong>Save as PDF</strong>.</p>
+
+<div class="toc card">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#overview">1. Overview</a></li>
+    <li><a href="#architecture">2. Architecture diagrams</a></li>
+    <li><a href="#components">3. Component map</a></li>
+    <li><a href="#flows">4. Request flows</a></li>
+    <li><a href="#env">5. Environment variables</a></li>
+    <li><a href="#api">6. HTTP API reference</a></li>
+    <li><a href="#cba">7. CBA / UAPI integration</a></li>
+    <li><a href="#llm">8. LLM orchestration (Groq → OpenAI)</a></li>
+    <li><a href="#postman">9. Postman testing</a></li>
+    <li><a href="#security">10. Security notes</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">1. Overview</h2>
+<p>This backend exposes a <strong>banking assistant API</strong> that:</p>
+<ul>
+  <li>Authenticates clients with <strong>JWT</strong> (demo <code>/auth/token</code>; replace with corporate IdP in production).</li>
+  <li>Applies a <strong>dynamic gateway</strong>: default mode (JWT only) vs general mode (JWT + <code>X-API-Key</code>).</li>
+  <li>Routes natural language through <strong>Groq</strong> (primary) or <strong>OpenAI</strong> (fallback) using <strong>function calling</strong>, with a <strong>regex fallback</strong> if no LLM keys are set.</li>
+  <li>Executes money movement via the <strong>CBA mock server / UAPI</strong> (<code>GetAccountsByCustomerId</code>, <code>LocalFundsTransfer</code>), not in-memory mocks.</li>
+  <li>Maps chat payee <em>names</em> to <strong>NUBAN</strong> account numbers using <code>CBA_PAYEE_ACCOUNT_MAP</code>.</li>
+</ul>
+
+<h2 id="architecture">2. Architecture diagrams</h2>
+
+<h3>2.1 Logical layers</h3>
+<div class="diagram">
+<svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="13">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e3f2fd"/><stop offset="100%" style="stop-color:#bbdefb"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffebee"/><stop offset="100%" style="stop-color:#ffcdd2"/>
+    </linearGradient>
+    <linearGradient id="g3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#fff9c4"/><stop offset="100%" style="stop-color:#fff59d"/>
+    </linearGradient>
+    <linearGradient id="g4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8f5e9"/><stop offset="100%" style="stop-color:#c8e6c9"/>
+    </linearGradient>
+    <linearGradient id="g5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f3e5f5"/><stop offset="100%" style="stop-color:#e1bee7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#455a64"/>
+    </marker>
+  </defs>
+  <rect x="40" y="20" width="640" height="70" rx="8" fill="url(#g1)" stroke="#1976d2" stroke-width="2"/>
+  <text x="360" y="48" text-anchor="middle" font-weight="bold" fill="#0d47a1">Channel — Web chat / Postman / Mobile (future)</text>
+  <text x="360" y="68" text-anchor="middle" fill="#1565c0" font-size="11">HTTPS JSON · Bearer JWT on /api/v1/*</text>
+  <line x1="360" y1="90" x2="360" y2="108" stroke="#455a64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="108" width="640" height="85" rx="8" fill="url(#g2)" stroke="#c62828" stroke-width="2"/>
+  <text x="360" y="135" text-anchor="middle" font-weight="bold" fill="#b71c1c">Security &amp; edge — Express + CORS · JWT middleware · Gateway credential</text>
+  <text x="360" y="158" text-anchor="middle" fill="#5d4037" font-size="11">defaultGateway: JWT only · general: JWT + X-API-Key</text>
+  <text x="360" y="178" text-anchor="middle" fill="#5d4037" font-size="11">req.auth + req.accessToken</text>
+  <line x1="360" y1="193" x2="360" y2="210" stroke="#455a64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="210" width="310" height="95" rx="8" fill="url(#g3)" stroke="#f9a825" stroke-width="2"/>
+  <text x="195" y="238" text-anchor="middle" font-weight="bold" fill="#f57f17">AI orchestration</text>
+  <text x="195" y="260" text-anchor="middle" font-size="11" fill="#6d4c41">Groq → OpenAI → regex</text>
+  <text x="195" y="278" text-anchor="middle" font-size="11" fill="#6d4c41">Tools: transfer_money · banking_knowledge</text>
+  <text x="195" y="296" text-anchor="middle" font-size="11" fill="#6d4c41">src/services/llmOrchestrator.js</text>
+
+  <rect x="370" y="210" width="310" height="95" rx="8" fill="url(#g4)" stroke="#388e3c" stroke-width="2"/>
+  <text x="525" y="238" text-anchor="middle" font-weight="bold" fill="#1b5e20">Banking services</text>
+  <text x="525" y="260" text-anchor="middle" font-size="11" fill="#2e7d32">Account (default/general shape)</text>
+  <text x="525" y="278" text-anchor="middle" font-size="11" fill="#2e7d32">Transfer → CBA repository</text>
+  <text x="525" y="296" text-anchor="middle" font-size="11" fill="#2e7d32">transferService · accountService*</text>
+
+  <line x1="195" y1="305" x2="280" y2="330" stroke="#455a64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="525" y1="305" x2="440" y2="330" stroke="#455a64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="330" width="640" height="75" rx="8" fill="url(#g5)" stroke="#7b1fa2" stroke-width="2"/>
+  <text x="360" y="358" text-anchor="middle" font-weight="bold" fill="#4a148c">CBA UAPI / Mock server (external)</text>
+  <text x="360" y="380" text-anchor="middle" font-size="11" fill="#6a1b9a">GET /api/Account/GetAccountsByCustomerId · POST …/LocalFundsTransfer</text>
+  <text x="360" y="396" text-anchor="middle" font-size="11" fill="#6a1b9a">authToken query + AuthenticationKey on transfer body</text>
+</svg>
+</div>
+
+<h3>2.2 Chat transfer sequence (happy path)</h3>
+<div class="diagram">
+<svg viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="12">
+  <marker id="a2" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L0,8 L8,4 z" fill="#37474f"/></marker>
+  <line x1="120" y1="40" x2="120" y2="300" stroke="#90a4ae" stroke-width="2"/>
+  <line x1="280" y1="40" x2="280" y2="300" stroke="#90a4ae" stroke-width="2"/>
+  <line x1="440" y1="40" x2="440" y2="300" stroke="#90a4ae" stroke-width="2"/>
+  <line x1="600" y1="40" x2="600" y2="300" stroke="#90a4ae" stroke-width="2"/>
+  <text x="120" y="28" text-anchor="middle" font-weight="bold">Client</text>
+  <text x="280" y="28" text-anchor="middle" font-weight="bold">API</text>
+  <text x="440" y="28" text-anchor="middle" font-weight="bold">LLM</text>
+  <text x="600" y="28" text-anchor="middle" font-weight="bold">CBA</text>
+  <path d="M130 55 H270" stroke="#37474f" marker-end="url(#a2)"/>
+  <text x="200" y="50" text-anchor="middle" font-size="10">POST /api/v1/chat + JWT</text>
+  <path d="M290 80 H430" stroke="#37474f" marker-end="url(#a2)"/>
+  <text x="360" y="75" text-anchor="middle" font-size="10">orchestrate() → Groq tool call</text>
+  <path d="M450 105 H590" stroke="#37474f" marker-end="url(#a2)"/>
+  <text x="520" y="100" text-anchor="middle" font-size="10">GetAccounts (balance check)</text>
+  <path d="M590 130 H450" stroke="#78909c" marker-end="url(#a2)"/>
+  <path d="M450 155 H590" stroke="#37474f" marker-end="url(#a2)"/>
+  <text x="520" y="150" text-anchor="middle" font-size="10">LocalFundsTransfer</text>
+  <path d="M590 180 H450" stroke="#78909c" marker-end="url(#a2)"/>
+  <path d="M430 210 H290" stroke="#78909c" marker-end="url(#a2)"/>
+  <text x="360" y="205" text-anchor="middle" font-size="10">JSON reply + transferId</text>
+  <path d="M270 235 H130" stroke="#78909c" marker-end="url(#a2)"/>
+  <text x="200" y="230" text-anchor="middle" font-size="10">200 + llmProvider</text>
+</svg>
+</div>
+
+<h2 id="components">3. Component map</h2>
+<table>
+  <tr><th>Path</th><th>Role</th></tr>
+  <tr><td><code>src/server.js</code></td><td>Express app, route mounting, health, listen</td></tr>
+  <tr><td><code>src/config.js</code></td><td>Central env-driven configuration</td></tr>
+  <tr><td><code>src/middleware/jwtAuth.js</code></td><td>Validates Bearer JWT; sets <code>req.auth</code>, <code>req.accessToken</code></td></tr>
+  <tr><td><code>src/middleware/gatewayAuth.js</code></td><td>Default vs general gateway (<code>X-API-Key</code>)</td></tr>
+  <tr><td><code>src/routes/auth.js</code></td><td><code>POST /auth/token</code> — demo login; JWT includes <code>customerId</code>, <code>accountNumber</code></td></tr>
+  <tr><td><code>src/routes/chat.js</code></td><td><code>POST /api/v1/chat</code> — NLU + transfer / RAG placeholder</td></tr>
+  <tr><td><code>src/routes/accounts.js</code></td><td><code>GET /api/v1/me/account</code></td></tr>
+  <tr><td><code>src/routes/transfers.js</code></td><td><code>POST /api/v1/transfers</code> — structured transfer</td></tr>
+  <tr><td><code>src/services/aiOrchestrator.js</code></td><td>Async facade: LLM chain → rule fallback</td></tr>
+  <tr><td><code>src/services/llmOrchestrator.js</code></td><td>Groq + OpenAI tool calling</td></tr>
+  <tr><td><code>src/services/ruleBasedOrchestrator.js</code></td><td>Regex-based intent/entities</td></tr>
+  <tr><td><code>src/services/transferService.js</code></td><td>Delegates to CBA repository</td></tr>
+  <tr><td><code>src/services/accountService*.js</code></td><td>Default vs “general” response shapes</td></tr>
+  <tr><td><code>src/cba/cbaClient.js</code></td><td>HTTP client to CBA base URL</td></tr>
+  <tr><td><code>src/cba/cbaBankingRepository.js</code></td><td>Account read, payee map, LocalFundsTransfer</td></tr>
+  <tr><td><code>src/data/cbaUsers.js</code></td><td>Demo users: password + CBA <code>customerId</code> + NUBAN</td></tr>
+</table>
+
+<h2 id="flows">4. Request flows</h2>
+<h3>4.1 Direct transfer (no LLM)</h3>
+<ol>
+  <li><code>POST /auth/token</code> → <code>access_token</code></li>
+  <li><code>POST /api/v1/transfers</code> with <code>Authorization: Bearer …</code> and body <code>{"receiverUsername":"mahesh","amount":500}</code></li>
+  <li>Server resolves <code>mahesh</code> → NUBAN via <code>CBA_PAYEE_ACCOUNT_MAP</code>, calls CBA <code>LocalFundsTransfer</code></li>
+</ol>
+<h3>4.2 Chat transfer (LLM + CBA)</h3>
+<ol>
+  <li>Same JWT as above</li>
+  <li><code>POST /api/v1/chat</code> with <code>{"message":"send 500 to mahesh"}</code></li>
+  <li>Groq (or OpenAI) returns <code>transfer_money</code> tool args → same CBA path as 4.1</li>
+</ol>
+
+<h2 id="env">5. Environment variables</h2>
+<table>
+  <tr><th>Variable</th><th>Purpose</th></tr>
+  <tr><td><code>PORT</code></td><td>HTTP port (default 3000)</td></tr>
+  <tr><td><code>JWT_SECRET</code></td><td>Signs demo JWTs</td></tr>
+  <tr><td><code>JWT_EXPIRES_IN</code></td><td>Token lifetime</td></tr>
+  <tr><td><code>DEFAULT_GATEWAY_ENABLED</code></td><td>true: no <code>X-API-Key</code>; false: require general API key</td></tr>
+  <tr><td><code>GENERAL_API_KEY</code></td><td>Value for <code>X-API-Key</code> in general mode</td></tr>
+  <tr><td><code>DEFAULT_ACCOUNT_SERVICE_ENABLED</code></td><td>Account JSON shape (default vs general)</td></tr>
+  <tr><td><code>CBA_BASE_URL</code></td><td>CBA mock server root (no trailing slash)</td></tr>
+  <tr><td><code>CBA_AUTH_TOKEN</code></td><td>Simulator <code>authToken</code> + <code>AuthenticationKey</code></td></tr>
+  <tr><td><code>CBA_TIMEOUT_MS</code></td><td>HTTP timeout</td></tr>
+  <tr><td><code>CBA_CURRENCY</code></td><td>Label in API responses (e.g. NGN)</td></tr>
+  <tr><td><code>CBA_PAYEE_ACCOUNT_MAP</code></td><td>JSON map username → destination NUBAN</td></tr>
+  <tr><td><code>GROQ_API_KEY</code> / <code>OPENAI_API_KEY</code></td><td>LLM providers</td></tr>
+  <tr><td><code>GROQ_MODEL</code> / <code>OPENAI_MODEL</code></td><td>Model ids</td></tr>
+</table>
+<p>Reference copy without secrets: <code>.env.example</code> in project root.</p>
+
+<h2 id="api">6. HTTP API reference</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+  <tr><td>GET</td><td><code>/health</code></td><td>None</td><td>Liveness + config flags (no secrets)</td></tr>
+  <tr><td>POST</td><td><code>/auth/token</code></td><td>None</td><td>Body: <code>username</code>, <code>password</code> → JWT</td></tr>
+  <tr><td>POST</td><td><code>/api/v1/chat</code></td><td>Bearer JWT (+ optional <code>X-API-Key</code>)</td><td>Body: <code>message</code></td></tr>
+  <tr><td>GET</td><td><code>/api/v1/me/account</code></td><td>Bearer JWT (+ key)</td><td>Balance from CBA for JWT <code>customerId</code> / NUBAN</td></tr>
+  <tr><td>POST</td><td><code>/api/v1/transfers</code></td><td>Bearer JWT (+ key)</td><td>Body: <code>receiverUsername</code>, <code>amount</code> (major units)</td></tr>
+</table>
+
+<h3>6.1 JWT claims (demo token)</h3>
+<p><code>sub</code>, <code>username</code>, <code>name</code>, <code>customerId</code>, <code>accountNumber</code> — last two are required for CBA calls.</p>
+
+<h2 id="cba">7. CBA / UAPI integration</h2>
+<ul>
+  <li><strong>Accounts:</strong> <code>GET {CBA_BASE_URL}/api/Account/GetAccountsByCustomerId?customerId=…&amp;authToken=…</code></li>
+  <li><strong>Transfer:</strong> <code>POST {CBA_BASE_URL}/thirdpartyapiservice/apiservice/CoreTransactions/LocalFundsTransfer</code> with JSON body including <code>FromAccountNumber</code>, <code>ToAccountNumber</code>, <code>Amount</code> (string, major units), <code>RetrievalReference</code>, <code>AuthenticationKey</code>.</li>
+  <li><strong>Payee names:</strong> resolved only through <code>CBA_PAYEE_ACCOUNT_MAP</code>; align keys with NLU output (lowercase).</li>
+  <li><strong>Users:</strong> edit <code>src/data/cbaUsers.js</code> so <code>customerId</code> and <code>accountNumber</code> match your simulator database.</li>
+</ul>
+
+<h2 id="llm">8. LLM orchestration</h2>
+<ul>
+  <li>If <code>GROQ_API_KEY</code> is set: Groq OpenAI-compatible API + tools.</li>
+  <li>On Groq failure: <code>OPENAI_API_KEY</code> if set.</li>
+  <li>If neither key is set: regex orchestrator only.</li>
+  <li>Tools: <code>transfer_money</code> (receiver + amount), <code>banking_knowledge_question</code> (RAG placeholder).</li>
+</ul>
+
+<h2 id="postman">9. Postman testing</h2>
+<ol>
+  <li>Create request <strong>POST</strong> <code>http://localhost:&lt;PORT&gt;/auth/token</code>, body JSON <code>{"username":"alice","password":"alice123"}</code>.</li>
+  <li>Copy <code>access_token</code>.</li>
+  <li>New request <strong>POST</strong> <code>/api/v1/transfers</code> → Authorization <strong>Bearer Token</strong> → body <code>{"receiverUsername":"mahesh","amount":500}</code>.</li>
+  <li>If <code>DEFAULT_GATEWAY_ENABLED=false</code>, add header <code>X-API-Key: &lt;GENERAL_API_KEY&gt;</code>.</li>
+</ol>
+
+<h2 id="security">10. Security notes</h2>
+<ul>
+  <li>Never commit <code>.env</code> or API keys; rotate keys if exposed.</li>
+  <li>Replace <code>/auth/token</code> with enterprise OAuth2/OIDC and JWKS validation for production.</li>
+  <li>Rate-limit and WAF belong in front of this service in production.</li>
+  <li>LLM output must not bypass server-side validation; CBA enforces real balances and account rules.</li>
+</ul>
+
+<div class="footer">
+  Generated for project <strong>ai-banking-api</strong> · Open in browser and print to PDF for a portable document.
+</div>
+
+</body>
+</html>
