@@ -46,7 +46,7 @@ app.get('/health', (_req, res) => {
 app.use('/auth', authRouter);
 
 const banking = express.Router();
-banking.use(jwtAuth(true));
+banking.use(jwtAuth());
 banking.use(gatewayCredential);
 banking.use('/chat', chatRouter);
 banking.use('/me', accountsRouter);
@@ -105,6 +105,12 @@ async function start() {
     console.log(
       `Gateway: ${config.defaultGatewayEnabled ? 'default (no X-API-Key)' : 'general (X-API-Key required)'}`,
     );
+    if (!config.jwtAuthRequired) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `JWT auth is OFF — API uses registry user "${config.anonymousAuthUsername}" without Authorization. Set JWT_AUTH_REQUIRED=true for production.`,
+      );
+    }
     // eslint-disable-next-line no-console
     console.log(`CBA UAPI: ${config.cbaBaseUrl}`);
     let payeeCount = 0;

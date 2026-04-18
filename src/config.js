@@ -16,6 +16,13 @@ module.exports = {
   port: Number(process.env.PORT) || 3000,
   jwtSecret: process.env.JWT_SECRET || 'dev-only-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
+  /**
+   * When false, banking routes do not require `Authorization: Bearer`; a fixed registry user is assumed.
+   * Set JWT_AUTH_REQUIRED=true in production so the frontend must send a valid JWT.
+   */
+  jwtAuthRequired: boolEnv('JWT_AUTH_REQUIRED', false),
+  /** Registry username used when JWT_AUTH_REQUIRED=false and no Bearer token is sent. */
+  anonymousAuthUsername: (process.env.ANONYMOUS_AUTH_USERNAME || 'alice').trim().toLowerCase(),
 
   /** Google Sign-In: Web client ID(s) from Google Cloud Console (OAuth 2.0 Client). */
   googleOauthClientId: (process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
